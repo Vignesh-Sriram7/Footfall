@@ -32,16 +32,16 @@ const unsigned long printInterval = 500;  // Serial monitor updated every 500 ms
 unsigned long lastPing = 0, lastAccel = 0, lastPrint = 0;
 unsigned long lastMovement = 0;
 
-// --- State ---
+// Initialize state variables
 float distanceCm = -1.0f;
 float ax = 0, ay = 0, az = 0;
 float gx = 0, gy = 0, gz = 0;
-float accelDeviation = 0;
+float accelDeviation = 0; // Denotes how far the actual acceleration is from the actual gravity
 bool nearObject = false;
 bool moving = false;
 bool ledOn = false;
 
-// Ultrasonic sensor reader
+// Ultrasonic sensor reader runs in the loop
 float readDistanceCm() {
   digitalWrite(TRIG_PIN, LOW);
   delayMicroseconds(2);
@@ -73,6 +73,7 @@ int16_t read16(uint8_t reg) {
   return (high << 8) | low; // Shift the byte to store as a 16 bit value
 }
 
+// 1g = 4096 raw units; Shifting the register by 2 enables the access to other axis values
 void readMpu() {
   ax = (read16(ACCEL_XOUT_H)     / 4096.0f) * GRAVITY;
   ay = (read16(ACCEL_XOUT_H + 2) / 4096.0f) * GRAVITY;
@@ -88,10 +89,12 @@ void readMpu() {
 
 void setup() {
   Serial.begin(115200);
+  // Wait for serial maximum of 3 seconds
   while (!Serial && millis() < 3000) delay(10);
-  Serial.println("Initializing MPU6050 & Ultrasonic System...");
+  Serial.println("Initializing MPU6050 & Ultrasonic Sensor");
 
   // Start the I2C communication accessing the I2C pins of the ESP32-S3
+  // SDA -> 8 ; SCL -> 9
   Wire.begin(8, 9);
 
   // Define the trigger as output and echo as input
@@ -111,30 +114,32 @@ void setup() {
   writeRegister(CONFIG_REG, 0x04);     // DLPF 21 Hz
   delay(100);
 
-  Serial.println("Ready. LED = distance < 80 cm AND movement.");
+  Serial.println("Ready. LED = distance < 80 cm AND movement");
 }
 
 void loop() {
   unsigned long now = millis();
 
-  // --- Accelerometer: fast sampling, movement detection ---
+  // Checks if 20ms has passed since the last check
   if (now - lastAccel >= accelInterval) {
     lastAccel = now;
     readMpu();
     if (accelDeviation > accelThreshold) {
       lastMovement = now;
     }
+    // Checks if the movement happened in the last 1 second
     moving = (lastMovement != 0) && (now - lastMovement <= movementHoldMs);
   }
 
-  // --- Ultrasonic: distance check ---
+  // Checks if 100 ms has passed since the last measurement
   if (now - lastPing >= pingInterval) {
     lastPing = now;
     distanceCm = readDistanceCm();
+    // Checks the distance threshold
     nearObject = (distanceCm > 0 && distanceCm < distanceThresholdCm);
   }
 
-  // --- LED: ON only if BOTH conditions are true ---
+  // LED is on if both the conditions are satisfied
   bool shouldBeOn = nearObject && moving;
   if (shouldBeOn != ledOn) {
     ledOn = shouldBeOn;
@@ -143,7 +148,7 @@ void loop() {
                          : "\n>>> Condition lost: LED OFF <<<");
   }
 
-  // --- Telemetry ---
+  // Telemetry
   if (now - lastPrint >= printInterval) {
     lastPrint = now;
     Serial.print("Accel X: ");  Serial.print(ax, 2);
