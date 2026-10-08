@@ -24,6 +24,8 @@ const float distanceThresholdCm = 80.0f;  // Object must be closer than this
 const float accelThreshold      = 0.5f;         // m/s^2 deviation from 1 g counts as movement
 const unsigned long movementHoldMs = 1000;      // keep "movement" true this long after last spike
 const float GRAVITY = 9.80665f;
+float previous_Az = 0.0, delta_Az = 0.0;
+float cand_thresh = 0.25;
 
 // Timing conditions
 const unsigned long pingInterval  = 100;  // Ultrasonic sensor pinged every 100 ms
@@ -83,8 +85,6 @@ void readMpu() {
   gy = (read16(GYRO_XOUT_H + 2) / 65.5f) * PI / 180.0f;
   gz = (read16(GYRO_XOUT_H + 4) / 65.5f) * PI / 180.0f;
 
-  float magnitude = sqrtf(ax * ax + ay * ay + az * az);
-  accelDeviation = fabsf(magnitude - GRAVITY);
 }
 
 void setup() {
@@ -109,7 +109,7 @@ void setup() {
   // Write the registers to the corresponding address
   writeRegister(PWR_MGMT_1, 0x00);
   delay(100);
-  writeRegister(ACCEL_CONFIG, 0x10);   // +-8 g
+  writeRegister(ACCEL_CONFIG, 0x00);   // +-2 g for higher sensitivity
   writeRegister(GYRO_CONFIG, 0x08);    // +-500 deg/s
   writeRegister(CONFIG_REG, 0x04);     // DLPF 21 Hz
   delay(100);
@@ -118,17 +118,31 @@ void setup() {
 }
 
 void loop() {
-  unsigned long now = millis();
+  unsigned long now = millis(); // Update the current time
 
   // Checks if 20ms has passed since the last check
   if (now - lastAccel >= accelInterval) {
     lastAccel = now;
     readMpu();
-    if (accelDeviation > accelThreshold) {
-      lastMovement = now;
+    // Check the first run
+    static bool firstRun = true;
+    if (firstRun) {
+      previous_Az = az;
+      firstRun = false;
+      return; 
     }
-    // Checks if the movement happened in the last 1 second
-    moving = (lastMovement != 0) && (now - lastMovement <= movementHoldMs);
+
+    // Since the x and y are static, just the change in az needs to be calculated
+    delta_Az = fabs(az - previous_Az);
+    previous_Az = az;
+
+    // Manually measured that the peak is around 0.20 to 0.25 m/s2
+    if(delta_Az >= cand_thresh)
+
+      moving = true;
+
+    else
+      moving = false;
   }
 
   // Checks if 100 ms has passed since the last measurement

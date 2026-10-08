@@ -16,7 +16,10 @@ const float GRAVITY = 9.80665f;
 const unsigned long accelInterval = 20;   // Accelerometer read every 20 ms
 const unsigned long printInterval = 500;  // Serial monitor updated every 500 ms
 unsigned long lastPing = 0, lastAccel = 0, lastPrint = 0;
-float previous_Az = 0, delta_Az = 0;
+float previous_Az = 0.0, delta_Az = 0.0;
+float cand_thresh = 0.25;
+float maxIdleDelta = 0.0;
+unsigned long countSpike = 0;
 
 // Initialize state variables
 float ax = 0, ay = 0, az = 0;
@@ -68,7 +71,7 @@ void setup() {
   // Write the registers to the corresponding address
   writeRegister(PWR_MGMT_1, 0x00);
   delay(100);
-  writeRegister(ACCEL_CONFIG, 0x00);   // +-8 g
+  writeRegister(ACCEL_CONFIG, 0x00);   // +-2 g
   writeRegister(GYRO_CONFIG, 0x08);    // +-500 deg/s
   writeRegister(CONFIG_REG, 0x04);     // DLPF 21 Hz
   delay(100);
@@ -81,14 +84,28 @@ void loop() {
   if (now - lastAccel >= accelInterval) {
     lastAccel = now;
     readMpu();
-  }
+    static bool firstRun = true;
+    if (firstRun) {
+      previous_Az = az;
+      firstRun = false;
+      return; 
+    }
 
-  
-  // Telemetry
+    // Normal telemetry logic (runs from sample #2 onward)
     delta_Az = fabs(az - previous_Az);
     previous_Az = az;
-    if(delta_Az > 0.08)
+
+    if (delta_Az > maxIdleDelta) {
+      maxIdleDelta = delta_Az;
+      Serial.print("New Noise Peak: ");
+      Serial.println(maxIdleDelta);
+    }
+
+    if(delta_Az >= cand_thresh)
     {
+    countSpike++;
+    Serial.println("Spike count: "); 
+    Serial.print(countSpike);
     Serial.println("");
     Serial.print("Delta Az: "); Serial.print(delta_Az);
     Serial.println("");
@@ -96,5 +113,8 @@ void loop() {
     Serial.print(" | Y: ");     Serial.print(ay, 2);
     Serial.print(" | Z: ");     Serial.print(az, 2);
     }
-
+    
+  }
 }
+
+  
