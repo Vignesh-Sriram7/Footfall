@@ -25,14 +25,17 @@ const float accelThreshold      = 0.5f;         // m/s^2 deviation from 1 g coun
 const unsigned long movementHoldMs = 1000;      // keep "movement" true this long after last spike
 const float GRAVITY = 9.80665f;
 float previous_Az = 0.0, delta_Az = 0.0;
-float cand_thresh = 0.25;
+float cand_thresh = 0.20;
 
 // Timing conditions
 const unsigned long pingInterval  = 100;  // Ultrasonic sensor pinged every 100 ms
 const unsigned long accelInterval = 20;   // Accelerometer read every 20 ms
 const unsigned long printInterval = 500;  // Serial monitor updated every 500 ms
+const unsigned long ledAlertDuration = 2000;
+const unsigned long ledToggleDuration = 150;
 unsigned long lastPing = 0, lastAccel = 0, lastPrint = 0;
 unsigned long lastMovement = 0;
+unsigned long lastFlashTime = 0, lastToggleTime = 0;
 
 // Initialize state variables
 float distanceCm = -1.0f;
@@ -41,7 +44,8 @@ float gx = 0, gy = 0, gz = 0;
 float accelDeviation = 0; // Denotes how far the actual acceleration is from the actual gravity
 bool nearObject = false;
 bool moving = false;
-bool ledOn = false;
+bool isLedOn = false;
+bool ledAlertActive = false;
 
 // Ultrasonic sensor reader runs in the loop
 float readDistanceCm() {
@@ -77,9 +81,9 @@ int16_t read16(uint8_t reg) {
 
 // 1g = 4096 raw units; Shifting the register by 2 enables the access to other axis values
 void readMpu() {
-  ax = (read16(ACCEL_XOUT_H)     / 4096.0f) * GRAVITY;
-  ay = (read16(ACCEL_XOUT_H + 2) / 4096.0f) * GRAVITY;
-  az = (read16(ACCEL_XOUT_H + 4) / 4096.0f) * GRAVITY;
+  ax = (read16(ACCEL_XOUT_H)     / 16384.0f) * GRAVITY;
+  ay = (read16(ACCEL_XOUT_H + 2) / 16384.0f) * GRAVITY;
+  az = (read16(ACCEL_XOUT_H + 4) / 16384.0f) * GRAVITY;
 
   gx = (read16(GYRO_XOUT_H)     / 65.5f) * PI / 180.0f;
   gy = (read16(GYRO_XOUT_H + 2) / 65.5f) * PI / 180.0f;
@@ -153,14 +157,16 @@ void loop() {
     nearObject = (distanceCm > 0 && distanceCm < distanceThresholdCm);
   }
 
-  // LED is on if both the conditions are satisfied
-  bool shouldBeOn = nearObject && moving;
-  if (shouldBeOn != ledOn) {
-    ledOn = shouldBeOn;
-    digitalWrite(led, ledOn ? HIGH : LOW);
-    Serial.println(ledOn ? "\n>>> BOTH CONDITIONS MET: LED ON <<<"
-                         : "\n>>> Condition lost: LED OFF <<<");
+  // If both conditions are met initiate the led alert
+  if(nearObject && moving){
+    ledAlertActive = true;
+    lastFlashTime = now;
+    lastToggleTime = now;
+    isLedOn = true;
+    neopixelWrite(led, 255, 0, 0);
+    Serial.println("Intrusion Alerted!");
   }
+
 
   // Telemetry
   if (now - lastPrint >= printInterval) {
@@ -168,10 +174,28 @@ void loop() {
     Serial.print("Accel X: ");  Serial.print(ax, 2);
     Serial.print(" | Y: ");     Serial.print(ay, 2);
     Serial.print(" | Z: ");     Serial.print(az, 2);
-    Serial.print("  ||  Dev: "); Serial.print(accelDeviation, 2);
     Serial.print("  ||  Dist: "); Serial.print(distanceCm, 1);
     Serial.print(" cm | Near: "); Serial.print(nearObject ? "Y" : "N");
-    Serial.print(" | Moving: "); Serial.print(moving ? "Y" : "N");
-    Serial.print(" | LED: ");   Serial.println(ledOn ? "ON" : "OFF");
+    Serial.print(" | Moving: "); Serial.println(moving ? "Y" : "N");
+    
+  }
+  // Led alert flashing red and white
+  if(ledAlertActive){
+
+    if(now - lastFlashTime >= ledAlertDuration){
+      ledAlertActive = false;
+      isLedOn = false;
+      neopixelWrite(led, 0, 0, 0);
+    }
+
+    else if(now - lastToggleTime >= ledToggleDuration){
+      lastToggleTime = now;
+      isLedOn = !isLedOn;
+      if(isLedOn)
+        neopixelWrite(led, 255, 0, 0);
+      else
+        neopixelWrite(led, 0, 0, 0);
+
+    }
   }
 }
