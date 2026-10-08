@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h> //I2C communication library
+#include "MQTTManager.h" // Include the manager
 
 // Pins
 #define MPU_ADDR  0x68  // My I2C device responds at the address 0x68
@@ -33,6 +34,8 @@ const unsigned long accelInterval = 20;   // Accelerometer read every 20 ms
 const unsigned long printInterval = 500;  // Serial monitor updated every 500 ms
 const unsigned long ledAlertDuration = 2000;
 const unsigned long ledToggleDuration = 150;
+unsigned long lastMqttAlertTime = 0;
+const unsigned long mqttCooldown = 5000; // Wait 5 seconds between cloud messages
 unsigned long lastPing = 0, lastAccel = 0, lastPrint = 0;
 unsigned long lastMovement = 0;
 unsigned long lastFlashTime = 0, lastToggleTime = 0;
@@ -46,6 +49,19 @@ bool nearObject = false;
 bool moving = false;
 bool isLedOn = false;
 bool ledAlertActive = false;
+
+MQTTManager mqtt;
+
+// Adafruit IO Broker details & topics
+const char* mqttServer  = "io.adafruit.com";
+const uint16_t mqttPort = 1883;
+const char* mqttUser    = " ";
+const char* mqttPass    = " ";
+
+const char* alertTopic  = " ";
+
+const char* ssid     = " ";     // Your Wi-Fi network name
+const char* password = " "; // Your Wi-Fi password
 
 // Ultrasonic sensor reader runs in the loop
 float readDistanceCm() {
@@ -119,9 +135,31 @@ void setup() {
   delay(100);
 
   Serial.println("Ready. LED = distance < 80 cm AND movement");
+
+  Serial.begin(115200);
+
+  // Connect to Wi-Fi
+  Serial.print("Connecting to Wi-Fi: ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWi-Fi Connected!");
+  Serial.print("IP Address: ");
+  Serial.println(WiFi.localIP());
+
+  // Now initialize MQTT after Wi-Fi is up
+  mqtt.begin(mqttServer, mqttPort, mqttUser, mqttPass);
 }
 
 void loop() {
+
+  mqtt.update();
+
   unsigned long now = millis(); // Update the current time
 
   // Checks if 20ms has passed since the last check
@@ -165,6 +203,11 @@ void loop() {
     isLedOn = true;
     neopixelWrite(led, 255, 0, 0);
     Serial.println("Intrusion Alerted!");
+    // Send cloud alert if 5 seconds have passed since the last message
+    if (now - lastMqttAlertTime >= mqttCooldown) {
+      lastMqttAlertTime = now;
+      mqtt.publish(alertTopic, "INTRUSION DETECTED!");
+    }
   }
 
 

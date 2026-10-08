@@ -1,8 +1,9 @@
 #ifndef MQTT_MANAGER_H
 #define MQTT_MANAGER_H
 
-#include <Wifi.h>
+#include <WiFi.h>
 #include <PubSubClient.h>
+
 
 class MQTTManager {
 private:
