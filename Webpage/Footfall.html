@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32-S3 Security Command Center & Digital Twin</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            dark: '#0a0e17',
+                            card: '#121826',
+                            border: '#1e293b',
+                            accent: '#00f3ff',
+                            alert: '#ff0055',
+                            success: '#00ff88',
+                            warning: '#ffb700',
+                            dim: '#64748b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0a0e17;
+            color: #e2e8f0;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(0, 243, 255, 0.05) 0%, transparent 40%),
+                radial-gradient(circle at 85% 85%, rgba(255, 0, 85, 0.05) 0%, transparent 40%);
+            background-attachment: fixed;
+        }
+
+        .glass-panel {
+            background: rgba(18, 24, 38, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .glow-accent {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.25);
+        }
+
+        .glow-alert {
+            box-shadow: 0 0 25px rgba(255, 0, 85, 0.5);
+            animation: pulse-alert 0.8s infinite alternate;
+        }
+
+        @keyframes pulse-alert {
+            0% { box-shadow: 0 0 10px rgba(255, 0, 85, 0.3); }
+            100% { box-shadow: 0 0 30px rgba(255, 0, 85, 0.8); }
+        }
+
+        @keyframes radar-sweep {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .radar-line {
+            animation: radar-sweep 4s linear infinite;
+            transform-origin: bottom center;
+        }
+
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0e17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1e293b;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #00f3ff;
+        }
+    </style>
+</head>
+<body class="font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Top Header Navigation Bar -->
+    <header class="border-b border-cyber-border glass-panel sticky top-0 z-40 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- Brand & Status -->
+            <div class="flex items-center gap-3">
+                <div class="relative flex items-center justify-center w-10 h-10 rounded-xl bg-cyber-card border border-cyber-accent/30 text-cyber-accent">
+                    <i class="fa-solid fa-shield-halved text-xl"></i>
+                    <span id="headerRadarPulse" class="absolute -top-1 -right-1 w-3 h-3 bg-cyber-accent rounded-full animate-ping"></span>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white flex items-center gap-2">
+                        DEFENDER-S3 <span class="text-xs font-mono font-normal px-2 py-0.5 rounded bg-cyber-accent/10 text-cyber-accent border border-cyber-accent/20">V2.4</span>
+                    </h1>
+                    <p class="text-xs text-cyber-dim font-mono">ESP32-S3 BOUNDARY INTRUSION COMMAND CENTER</p>
+                </div>
+            </div>
+
+            <!-- System Indicators -->
+            <div class="flex items-center gap-3 flex-wrap">
+                <!-- System Mode Pill -->
+                <div id="statusPill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-semibold bg-cyber-success/10 text-cyber-success border border-cyber-success/30">
+                    <span class="w-2 h-2 rounded-full bg-cyber-success animate-pulse"></span>
+                    <span id="statusPillText">SYSTEM ARMED</span>
+                </div>
+
+                <!-- DataSource Pill -->
+                <div id="sourcePill" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono bg-cyber-card border border-cyber-border text-cyber-accent">
+                    <i class="fa-solid fa-microchip"></i>
+                    <span id="sourcePillText">DIGITAL TWIN SIMULATOR</span>
+                </div>
+
+                <!-- Stats Badges -->
+                <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyber-card border border-cyber-border text-xs font-mono text-slate-300">
+                    <i class="fa-solid fa-clock text-cyber-dim"></i>
+                    <span>UPTIME:</span>
+                    <span id="uptimeCounter" class="text-white font-bold">00:00:00</span>
+                </div>
+
+                <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyber-card border border-cyber-border text-xs font-mono text-slate-300">
+                    <i class="fa-solid fa-triangle-exclamation text-cyber-alert"></i>
+                    <span>ALERTS:</span>
+                    <span id="totalAlertsCount" class="text-cyber-alert font-bold">0</span>
+                </div>
+
+                <!-- Sound Toggle -->
+                <button id="soundToggleBtn" onclick="toggleAudio()" class="w-9 h-9 rounded-xl bg-cyber-card border border-cyber-border hover:border-cyber-accent text-slate-300 hover:text-cyber-accent flex items-center justify-center transition-colors">
+                    <i id="soundIcon" class="fa-solid fa-volume-high"></i>
+                </button>
+
+                <!-- Cloud Settings Trigger -->
+                <button onclick="openConfigModal()" class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-cyber-accent/10 border border-cyber-accent/30 hover:bg-cyber-accent/20 text-cyber-accent text-xs font-semibold transition-all">
+                    <i class="fa-solid fa-wifi"></i>
+                    <span>AIO CONNECT</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Command Center Grid -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- ================= LEFT COLUMN: DIGITAL TWIN SIMULATOR (4 Cols) ================= -->
+        <section class="lg:col-span-4 flex flex-col gap-6">
+
+            <!-- Hardware Visualizer Card -->
+            <div class="glass-panel rounded-2xl p-5 border border-cyber-border relative overflow-hidden">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-vr-cardboard text-cyber-accent"></i>
+                        ESP32-S3 Hardware Twin
+                    </h2>
+                    <span class="text-xs font-mono text-cyber-dim">3D Visualizer</span>
+                </div>
+
+                <!-- Digital Twin ESP32-S3 Canvas / Visual Block -->
+                <div class="relative bg-slate-950 rounded-xl p-4 border border-cyber-border flex flex-col items-center justify-center min-h-[220px]">
+                    <!-- Circuit Board Background Representation -->
+                    <div class="w-full max-w-[280px] bg-emerald-950/60 border-2 border-emerald-500/40 rounded-lg p-3 relative shadow-inner">
+                        <div class="text-[10px] font-mono text-emerald-400/80 mb-2 flex justify-between">
+                            <span>ESP32-S3-WROOM-1</span>
+                            <span>GPIO 48 RGB</span>
+                        </div>
+
+                        <!-- Microcontroller Core Chip -->
+                        <div class="bg-zinc-800 border border-zinc-600 rounded p-2 text-center shadow-lg my-2 relative">
+                            <span class="text-[9px] font-mono text-zinc-400 tracking-widest block">ESPRESSIF</span>
+                            <span class="text-[11px] font-mono font-bold text-zinc-200 block">ESP32-S3</span>
+
+                            <!-- Onboard NeoPixel LED Visual -->
+                            <div class="mt-3 flex items-center justify-center gap-2">
+                                <span class="text-[10px] text-zinc-400 font-mono">RGB LED:</span>
+                                <div id="neoPixelLed" class="w-6 h-6 rounded-full bg-zinc-700 border-2 border-zinc-500 transition-all duration-150 flex items-center justify-center">
+                                    <div id="neoPixelInner" class="w-2 h-2 rounded-full bg-zinc-900"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Hardware Sensor Connections -->
+                        <div class="grid grid-cols-2 gap-2 mt-3 text-[10px] font-mono">
+                            <div class="bg-slate-900/90 border border-cyan-500/30 rounded p-1.5 text-center">
+                                <i class="fa-solid fa-radar text-cyber-accent"></i> HC-SR04
+                                <div id="twinDistanceVal" class="text-white font-bold mt-0.5">150.0 cm</div>
+                            </div>
+                            <div class="bg-slate-900/90 border border-purple-500/30 rounded p-1.5 text-center">
+                                <i class="fa-solid fa-arrows-spin text-purple-400"></i> MPU6050
+                                <div id="twinMpuVal" class="text-white font-bold mt-0.5">0.02 G</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hardware Interactive Sliders & Triggers -->
+                <div class="mt-5 space-y-4">
+                    <!-- Ultrasonic Distance Control -->
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-slate-300"><i class="fa-solid fa-ruler-horizontal text-cyber-accent mr-1"></i> Proximity (HC-SR04):</span>
+                            <span id="sliderDistanceVal" class="text-cyber-accent font-bold">150 cm</span>
+                        </div>
+                        <input id="distanceSlider" type="range" min="2" max="200" value="150" class="w-full accent-cyber-accent bg-slate-800 rounded-lg h-2 cursor-pointer" oninput="updateSimDistance(this.value)">
+                        <div class="flex justify-between text-[10px] text-cyber-dim font-mono mt-0.5">
+                            <span>2 cm (Near)</span>
+                            <span class="text-cyber-alert">Threshold: &lt;30cm</span>
+                            <span>200 cm (Far)</span>
+                        </div>
+                    </div>
+
+                    <!-- MPU6050 Accelerometer Control -->
+                    <div>
+                        <div class="flex justify-between text-xs font-mono mb-1">
+                            <span class="text-slate-300"><i class="fa-solid fa-arrows-up-down-left-right text-purple-400 mr-1"></i> Motion Deviation (MPU):</span>
+                            <span id="sliderMpuVal" class="text-purple-400 font-bold">0.02 G</span>
+                        </div>
+                        <input id="mpuSlider" type="range" min="0" max="200" value="2" class="w-full accent-purple-400 bg-slate-800 rounded-lg h-2 cursor-pointer" oninput="updateSimMpu(this.value / 100)">
+                        <div class="flex justify-between text-[10px] text-cyber-dim font-mono mt-0.5">
+                            <span>0.0 G (Still)</span>
+                            <span class="text-cyber-alert">Threshold: &gt;0.45G</span>
+                            <span>2.0 G (Shock)</span>
+                        </div>
+                    </div>
+
+                    <!-- Simulator Action Buttons -->
+                    <div class="grid grid-cols-2 gap-2 pt-2">
+                        <button onclick="triggerSimulatedIntrusion()" class="col-span-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-cyber-alert to-pink-600 hover:from-pink-600 hover:to-cyber-alert text-white font-bold text-xs uppercase tracking-wider shadow-lg hover:shadow-cyber-alert/40 transition-all flex items-center justify-center gap-2">
+                            <i class="fa-solid fa-bolt"></i>
+                            Simulate Dual Intrusion
+                        </button>
+                        <button onclick="triggerSimulatedProximity()" class="py-2 px-3 rounded-xl bg-cyber-card border border-cyber-accent/40 hover:bg-cyber-accent/10 text-cyber-accent text-xs font-mono transition-all">
+                            Distance Spike
+                        </button>
+                        <button onclick="triggerSimulatedMotion()" class="py-2 px-3 rounded-xl bg-cyber-card border border-purple-500/40 hover:bg-purple-500/10 text-purple-400 text-xs font-mono transition-all">
+                            MPU Shake
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ultrasonic Radar Sweep Canvas -->
+            <div class="glass-panel rounded-2xl p-4 border border-cyber-border flex flex-col items-center">
+                <div class="w-full flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider"><i class="fa-solid fa-radar text-cyber-accent mr-1"></i> Spatial Radar View</span>
+                    <span id="radarStatusText" class="text-[10px] font-mono text-cyber-success">CLEAR</span>
+                </div>
+                <div class="relative w-full aspect-square max-w-[220px] rounded-full border-2 border-cyber-accent/30 bg-slate-950/80 overflow-hidden flex items-center justify-center">
+                    <!-- Concentric Circles -->
+                    <div class="absolute w-3/4 h-3/4 rounded-full border border-cyber-accent/20"></div>
+                    <div class="absolute w-1/2 h-1/2 rounded-full border border-cyber-accent/20"></div>
+                    <div class="absolute w-1/4 h-1/4 rounded-full border border-cyber-accent/20"></div>
+                    <div class="absolute w-full h-[1px] bg-cyber-accent/20"></div>
+                    <div class="absolute h-full w-[1px] bg-cyber-accent/20"></div>
+
+                    <!-- Radar Sweep Blade -->
+                    <div class="radar-line absolute bottom-1/2 left-1/2 w-1/2 h-1/2 bg-gradient-to-r from-transparent via-cyber-accent/20 to-cyber-accent/60 origin-bottom-left rounded-tl-full"></div>
+
+                    <!-- Detected Target Dot -->
+                    <div id="radarTargetDot" class="absolute w-3 h-3 rounded-full bg-cyber-alert shadow-[0_0_10px_#ff0055] transition-all duration-300 opacity-0"></div>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ================= CENTER COLUMN: REAL-TIME ANALYTICS & CONTROL (5 Cols) ================= -->
+        <section class="lg:col-span-5 flex flex-col gap-6">
+
+            <!-- Master System Control Panel -->
+            <div class="glass-panel rounded-2xl p-5 border border-cyber-border">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-sliders text-cyber-accent"></i>
+                        System Controls & Parameters
+                    </h2>
+                    <span class="text-xs font-mono text-cyber-dim">Real-time Override</span>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Arm/Disarm Toggle Button -->
+                    <button id="armToggleBtn" onclick="toggleSystemArm()" class="py-3 px-4 rounded-xl bg-cyber-success/20 border border-cyber-success/50 hover:bg-cyber-success/30 text-cyber-success font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2">
+                        <i id="armIcon" class="fa-solid fa-lock"></i>
+                        <span id="armBtnText">DISARM SYSTEM</span>
+                    </button>
+
+                    <!-- Silence / Reset Alarm Button -->
+                    <button onclick="resetAlarmState()" class="py-3 px-4 rounded-xl bg-cyber-card border border-cyber-border hover:border-slate-400 text-slate-300 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-bell-slash"></i>
+                        Reset Alarm
+                    </button>
+                </div>
+
+                <!-- Live Parameter Sliders -->
+                <div class="mt-4 pt-4 border-t border-cyber-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-mono">
+                    <div>
+                        <label class="text-slate-400 block mb-1">Distance Threshold:</label>
+                        <div class="flex items-center gap-2">
+                            <input id="threshDistInput" type="number" value="30" min="5" max="100" class="w-full bg-slate-900 border border-cyber-border rounded px-2 py-1 text-white font-bold" onchange="updateThresholds()">
+                            <span class="text-cyber-dim">cm</span>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-slate-400 block mb-1">Motion Threshold:</label>
+                        <div class="flex items-center gap-2">
+                            <input id="threshMpuInput" type="number" value="0.45" step="0.05" min="0.1" max="2.0" class="w-full bg-slate-900 border border-cyber-border rounded px-2 py-1 text-white font-bold" onchange="updateThresholds()">
+                            <span class="text-cyber-dim">G</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oscilloscope 1: Ultrasonic Proximity Waveform -->
+            <div class="glass-panel rounded-2xl p-4 border border-cyber-border flex flex-col">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-cyber-accent"></i>
+                        Distance Oscilloscope (HC-SR04)
+                    </span>
+                    <span id="liveDistLabel" class="text-xs font-mono font-bold text-cyber-accent">150 cm</span>
+                </div>
+                <div class="relative w-full h-36 bg-slate-950 rounded-xl border border-cyber-border overflow-hidden">
+                    <canvas id="chartDistance" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+            <!-- Oscilloscope 2: Accelerometer Vector Waveform -->
+            <div class="glass-panel rounded-2xl p-4 border border-cyber-border flex flex-col">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-wave-square text-purple-400"></i>
+                        Accelerometer Deviation (MPU6050)
+                    </span>
+                    <span id="liveMpuLabel" class="text-xs font-mono font-bold text-purple-400">0.02 G</span>
+                </div>
+                <div class="relative w-full h-36 bg-slate-950 rounded-xl border border-cyber-border overflow-hidden">
+                    <canvas id="chartMpu" class="w-full h-full block"></canvas>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- ================= RIGHT COLUMN: SECURITY EVENT STREAM & LOGS (3 Cols) ================= -->
+        <section class="lg:col-span-3 flex flex-col gap-6">
+
+            <div class="glass-panel rounded-2xl p-5 border border-cyber-border flex-1 flex flex-col min-h-[500px]">
+                <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-slate-200 flex items-center gap-2">
+                        <i class="fa-solid fa-list-check text-cyber-accent"></i>
+                        Intrusion Feed Log
+                    </h2>
+                    <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300" id="logCountBadge">0 events</span>
+                </div>
+
+                <!-- Search & Filters -->
+                <div class="flex gap-2 mb-3">
+                    <input id="logSearchInput" type="text" placeholder="Filter feed logs..." class="w-full bg-slate-900 border border-cyber-border rounded-xl px-3 py-1.5 text-xs text-white placeholder-cyber-dim focus:outline-none focus:border-cyber-accent" onkeyup="filterLogs()">
+                </div>
+
+                <!-- Log Table Stream Container -->
+                <div class="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[380px]" id="logContainer">
+                    <!-- Sample empty state -->
+                    <div id="emptyLogState" class="text-center py-12 text-cyber-dim text-xs font-mono">
+                        <i class="fa-solid fa-shield-cat text-3xl mb-2 block opacity-40"></i>
+                        No boundary alerts recorded yet.
+                    </div>
+                </div>
+
+                <!-- Export Data Buttons -->
+                <div class="pt-4 mt-3 border-t border-cyber-border grid grid-cols-2 gap-2">
+                    <button onclick="exportLogsCSV()" class="py-2 px-3 rounded-xl bg-cyber-card border border-cyber-border hover:border-cyber-accent text-slate-300 hover:text-cyber-accent text-xs font-mono transition-all flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-file-csv text-cyber-accent"></i> CSV
+                    </button>
+                    <button onclick="exportLogsJSON()" class="py-2 px-3 rounded-xl bg-cyber-card border border-cyber-border hover:border-cyber-accent text-slate-300 hover:text-cyber-accent text-xs font-mono transition-all flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-code text-cyber-accent"></i> JSON
+                    </button>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <!-- Modal: Adafruit IO Cloud Connect Setup -->
+    <div id="configModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden">
+        <div class="glass-panel max-w-md w-full rounded-2xl p-6 border border-cyber-accent/40 shadow-2xl relative">
+            <button onclick="closeConfigModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+
+            <div class="flex items-center gap-3 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-cyber-accent/10 border border-cyber-accent/30 flex items-center justify-center text-cyber-accent">
+                    <i class="fa-solid fa-cloud text-lg"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-white text-base">Adafruit IO Connection</h3>
+                    <p class="text-xs text-cyber-dim">Connect to live hardware feed</p>
+                </div>
+            </div>
+
+            <form id="aioForm" onsubmit="saveAioConfig(event)" class="space-y-4 text-xs font-mono">
+                <div>
+                    <label class="block text-slate-300 mb-1">AIO Username:</label>
+                    <input id="aioUser" type="text" required placeholder="e.g. johndoe" class="w-full bg-slate-900 border border-cyber-border rounded-xl p-2.5 text-white focus:border-cyber-accent focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 mb-1">AIO Active Key:</label>
+                    <input id="aioKey" type="password" required placeholder="aio_xxxxxxxxxxxxxxxxx" class="w-full bg-slate-900 border border-cyber-border rounded-xl p-2.5 text-white focus:border-cyber-accent focus:outline-none">
+                </div>
+
+                <div>
+                    <label class="block text-slate-300 mb-1">Feed Key:</label>
+                    <input id="aioFeed" type="text" required value="boundary-alert" class="w-full bg-slate-900 border border-cyber-border rounded-xl p-2.5 text-white focus:border-cyber-accent focus:outline-none">
+                </div>
+
+                <div class="pt-2 flex items-center justify-between border-t border-cyber-border">
+                    <button type="button" onclick="switchToSimulatorMode()" class="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition-all">
+                        Use Digital Twin
+                    </button>
+                    <button type="submit" class="px-5 py-2 rounded-xl bg-cyber-accent text-slate-950 font-bold hover:bg-cyan-300 transition-all">
+                        Connect Live
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <script>
+        /* ================= STATE MANAGEMENT ================= */
+        const state = {
+            isArmed: true,
+            status: "ARMED", // "ARMED" | "DISARMED" | "ALARM"
+            mode: "SIMULATOR", // "SIMULATOR" | "AIO_LIVE"
+            soundEnabled: true,
+            uptimeSeconds: 0,
+            alertsCount: 0,
+            thresholds: {
+                distance: 30, // cm
+                mpu: 0.45,    // G
+                cooldown: 5000 // ms
+            },
+            lastAlertTime: 0,
+            sensorData: {
+                distance: 150.0,
+                mpuG: 0.02
+            },
+            aioConfig: {
+                user: "",
+                key: "",
+                feed: "boundary-alert",
+                pollInterval: null
+            },
+            logs: [],
+            charts: {
+                distHistory: Array(50).fill(150),
+                mpuHistory: Array(50).fill(0.02)
+            }
+        };
+
+        /* ================= WEB AUDIO API ALARM SYNTHESIZER ================= */
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        function playAlarmChime() {
+            if (!state.soundEnabled) return;
+            initAudio();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(880, now); // A5
+                osc.frequency.setValueAtTime(1200, now + 0.15); // Disonant alert pitch
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } catch(e) {
+                console.warn("Audio blocked or unsupported:", e);
+            }
+        }
+
+        function playClickChime() {
+            if (!state.soundEnabled) return;
+            initAudio();
+            try {
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(440, now);
+                gain.gain.setValueAtTime(0.05, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start(now);
+                osc.stop(now + 0.08);
+            } catch(e) {}
+        }
+
+        function toggleAudio() {
+            state.soundEnabled = !state.soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            const btn = document.getElementById('soundToggleBtn');
+            if (state.soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                btn.classList.remove('text-slate-500');
+                btn.classList.add('text-cyber-accent');
+                showToast("Sound Notifications Unmuted", "info");
+                playClickChime();
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark';
+                btn.classList.add('text-slate-500');
+                btn.classList.remove('text-cyber-accent');
+                showToast("Sound Muted", "info");
+            }
+        }
+
+        /* ================= HARDWARE SIMULATOR & NEOPIXEL LOGIC ================= */
+        let flashLedInterval = null;
+
+        function triggerNeoPixelFlash() {
+            const led = document.getElementById('neoPixelLed');
+            const inner = document.getElementById('neoPixelInner');
+            if (!led || !inner) return;
+
+            // Stop any existing flash loop
+            if (flashLedInterval) clearInterval(flashLedInterval);
+
+            let flashState = false;
+            let durationLeft = 2000; // 2 seconds duration
+            const toggleRate = 150;  // 150ms toggle speed matching hardware sketch
+
+            flashLedInterval = setInterval(() => {
+                flashState = !flashState;
+                if (flashState) {
+                    led.style.backgroundColor = '#ff0055';
+                    led.style.boxShadow = '0 0 15px #ff0055';
+                    inner.style.backgroundColor = '#ffffff';
+                } else {
+                    led.style.backgroundColor = '#3f3f46';
+                    led.style.boxShadow = 'none';
+                    inner.style.backgroundColor = '#18181b';
+                }
+
+                durationLeft -= toggleRate;
+                if (durationLeft <= 0) {
+                    clearInterval(flashLedInterval);
+                    flashLedInterval = null;
+                    // Reset to idle state
+                    led.style.backgroundColor = '#3f3f46';
+                    led.style.boxShadow = 'none';
+                    inner.style.backgroundColor = '#18181b';
+                }
+            }, toggleRate);
+        }
+
+        function updateSimDistance(val) {
+            state.sensorData.distance = parseFloat(val);
+            document.getElementById('sliderDistanceVal').innerText = `${state.sensorData.distance.toFixed(1)} cm`;
+            document.getElementById('twinDistanceVal').innerText = `${state.sensorData.distance.toFixed(1)} cm`;
+            evaluateSensors();
+        }
+
+        function updateSimMpu(val) {
+            state.sensorData.mpuG = parseFloat(val);
+            document.getElementById('sliderMpuVal').innerText = `${state.sensorData.mpuG.toFixed(2)} G`;
+            document.getElementById('twinMpuVal').innerText = `${state.sensorData.mpuG.toFixed(2)} G`;
+            evaluateSensors();
+        }
+
+        /* Preset Simulation Triggers */
+        function triggerSimulatedIntrusion() {
+            updateSimDistance(12);
+            updateSimMpu(0.85);
+            document.getElementById('distanceSlider').value = 12;
+            document.getElementById('mpuSlider').value = 85;
+            showToast("Simulated Dual Intrusion Triggered!", "alert");
+        }
+
+        function triggerSimulatedProximity() {
+            updateSimDistance(15);
+            document.getElementById('distanceSlider').value = 15;
+            showToast("Proximity Triggered (<30cm)", "warning");
+        }
+
+        function triggerSimulatedMotion() {
+            updateSimMpu(0.90);
+            document.getElementById('mpuSlider').value = 90;
+            showToast("Motion Spike Triggered (>0.45G)", "warning");
+        }
+
+        /* Core Sensor Logic Evaluation */
+        function evaluateSensors() {
+            const nearObject = state.sensorData.distance < state.thresholds.distance;
+            const moving = state.sensorData.mpuG > state.thresholds.mpu;
+            const now = Date.now();
+
+            // Update Radar Dot position
+            updateRadarView(state.sensorData.distance, nearObject);
+
+            // Spatial-mechanical fusion check: both conditions must be met
+            if (nearObject && moving) {
+                if (state.isArmed && (now - state.lastAlertTime >= state.thresholds.cooldown)) {
+                    state.lastAlertTime = now;
+                    triggerAlarm("INTRUSION DETECTED! (Proximity + Motion)");
+                }
+            }
+        }
+
+        function triggerAlarm(message, source = "ESP32-S3 / Twin") {
+            state.alertsCount++;
+            document.getElementById('totalAlertsCount').innerText = state.alertsCount;
+
+            // Flash NeoPixel LED & Play Audio Siren
+            triggerNeoPixelFlash();
+            playAlarmChime();
+
+            // Set UI Status to Alarm
+            setSystemStatus("ALARM", message);
+
+            // Add to Log Stream
+            addLogEntry(source, message, "CRITICAL");
+
+            // Toast Alert
+            showToast(`🚨 ${message}`, "alert");
+        }
+
+        function setSystemStatus(status, customMsg) {
+            state.status = status;
+            const pill = document.getElementById('statusPill');
+            const text = document.getElementById('statusPillText');
+
+            if (status === "ALARM") {
+                pill.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-semibold bg-cyber-alert/20 text-cyber-alert border border-cyber-alert/50 glow-alert";
+                text.innerText = customMsg || "INTRUSION DETECTED!";
+            } else if (status === "ARMED") {
+                pill.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-semibold bg-cyber-success/10 text-cyber-success border border-cyber-success/30";
+                text.innerText = "SYSTEM ARMED";
+            } else {
+                pill.className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700";
+                text.innerText = "SYSTEM DISARMED";
+            }
+        }
+
+        function toggleSystemArm() {
+            state.isArmed = !state.isArmed;
+            const btn = document.getElementById('armToggleBtn');
+            const icon = document.getElementById('armIcon');
+            const btnText = document.getElementById('armBtnText');
+
+            playClickChime();
+
+            if (state.isArmed) {
+                setSystemStatus("ARMED");
+                btn.className = "py-3 px-4 rounded-xl bg-cyber-success/20 border border-cyber-success/50 hover:bg-cyber-success/30 text-cyber-success font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2";
+                icon.className = "fa-solid fa-lock";
+                btnText.innerText = "DISARM SYSTEM";
+                showToast("System Armed & Monitoring Boundary", "info");
+            } else {
+                setSystemStatus("DISARMED");
+                btn.className = "py-3 px-4 rounded-xl bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-300 font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2";
+                icon.className = "fa-solid fa-lock-open";
+                btnText.innerText = "ARM SYSTEM";
+                showToast("System Disarmed", "warning");
+            }
+        }
+
+        function resetAlarmState() {
+            playClickChime();
+            if (state.isArmed) {
+                setSystemStatus("ARMED");
+            } else {
+                setSystemStatus("DISARMED");
+            }
+            // Reset sliders to idle state
+            updateSimDistance(150);
+            updateSimMpu(0.02);
+            document.getElementById('distanceSlider').value = 150;
+            document.getElementById('mpuSlider').value = 2;
+            showToast("Alarm Reset to Normal", "info");
+        }
+
+        function updateThresholds() {
+            state.thresholds.distance = parseFloat(document.getElementById('threshDistInput').value) || 30;
+            state.thresholds.mpu = parseFloat(document.getElementById('threshMpuInput').value) || 0.45;
+            showToast(`Thresholds Updated: ${state.thresholds.distance}cm / ${state.thresholds.mpu}G`, "info");
+        }
+
+        /* Radar Target Positioning Animation */
+        function updateRadarView(distanceCm, isNear) {
+            const dot = document.getElementById('radarTargetDot');
+            const statusText = document.getElementById('radarStatusText');
+            if (!dot || !statusText) return;
+
+            if (isNear) {
+                const pct = Math.max(10, Math.min(85, (distanceCm / 30) * 85));
+                dot.style.top = `${50 - pct/2}%`;
+                dot.style.left = `${50 + pct/2}%`;
+                dot.style.opacity = '1';
+                statusText.innerText = 'TARGET DETECTED';
+                statusText.className = 'text-[10px] font-mono text-cyber-alert font-bold';
+            } else {
+                dot.style.opacity = '0';
+                statusText.innerText = 'CLEAR';
+                statusText.className = 'text-[10px] font-mono text-cyber-success';
+            }
+        }
+
+        /* Real-Time HTML5 Canvas Oscilloscopes */
+        function initOscilloscopes() {
+            const canvasDist = document.getElementById('chartDistance');
+            const canvasMpu = document.getElementById('chartMpu');
+
+            function resizeCanvas(canvas) {
+                if (canvas && canvas.parentElement) {
+                    canvas.width = canvas.parentElement.clientWidth;
+                    canvas.height = canvas.parentElement.clientHeight;
+                }
+            }
+
+            resizeCanvas(canvasDist);
+            resizeCanvas(canvasMpu);
+            window.addEventListener('resize', () => {
+                resizeCanvas(canvasDist);
+                resizeCanvas(canvasMpu);
+            });
+
+            function render() {
+                // Update History Arrays
+                state.charts.distHistory.push(state.sensorData.distance);
+                state.charts.distHistory.shift();
+
+                state.charts.mpuHistory.push(state.sensorData.mpuG);
+                state.charts.mpuHistory.shift();
+
+                // Draw Distance Canvas Waveform
+                drawChart(canvasDist, state.charts.distHistory, 0, 200, '#00f3ff', state.thresholds.distance);
+                document.getElementById('liveDistLabel').innerText = `${state.sensorData.distance.toFixed(1)} cm`;
+
+                // Draw MPU Canvas Waveform
+                drawChart(canvasMpu, state.charts.mpuHistory, 0, 2.0, '#a855f7', state.thresholds.mpu);
+                document.getElementById('liveMpuLabel').innerText = `${state.sensorData.mpuG.toFixed(2)} G`;
+
+                requestAnimationFrame(render);
+            }
+
+            requestAnimationFrame(render);
+        }
+
+        function drawChart(canvas, data, minVal, maxVal, color, thresholdVal) {
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width;
+            const h = canvas.height;
+
+            ctx.clearRect(0, 0, w, h);
+
+            // Grid Lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for (let y = 0; y < h; y += 25) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+            }
+
+            // Red Threshold Line
+            const threshY = h - ((thresholdVal - minVal) / (maxVal - minVal)) * h;
+            ctx.strokeStyle = '#ff0055';
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath(); ctx.moveTo(0, threshY); ctx.lineTo(w, threshY); ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Data Path
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+
+            const step = w / (data.length - 1);
+            data.forEach((val, i) => {
+                const norm = (val - minVal) / (maxVal - minVal);
+                const clampedNorm = Math.max(0, Math.min(1, norm));
+                const y = h - (clampedNorm * h);
+                const x = i * step;
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        }
+
+        /* Event Stream Table & Exporters */
+        function addLogEntry(feed, message, level = "CRITICAL") {
+            const entry = {
+                id: Date.now(),
+                timestamp: new Date().toLocaleTimeString(),
+                feed: feed,
+                message: message,
+                level: level
+            };
+
+            state.logs.unshift(entry);
+            renderLogs();
+        }
+
+        function renderLogs() {
+            const container = document.getElementById('logContainer');
+            const badge = document.getElementById('logCountBadge');
+            const search = document.getElementById('logSearchInput').value.toLowerCase();
+
+            badge.innerText = `${state.logs.length} events`;
+
+            const filtered = state.logs.filter(l => 
+                l.message.toLowerCase().includes(search) || 
+                l.feed.toLowerCase().includes(search) ||
+                l.timestamp.toLowerCase().includes(search)
+            );
+
+            if (filtered.length === 0) {
+                container.innerHTML = `
+                    <div id="emptyLogState" class="text-center py-12 text-cyber-dim text-xs font-mono">
+                        <i class="fa-solid fa-shield-cat text-3xl mb-2 block opacity-40"></i>
+                        No boundary alerts recorded yet.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filtered.map(log => `
+                <div class="p-2.5 rounded-xl bg-slate-900/90 border border-cyber-border hover:border-cyber-accent/40 transition-all text-xs font-mono">
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="text-[10px] text-cyber-dim"><i class="fa-solid fa-clock text-[9px] mr-1"></i>${log.timestamp}</span>
+                        <span class="px-1.5 py-0.5 text-[9px] rounded font-bold bg-cyber-alert/20 text-cyber-alert border border-cyber-alert/40">${log.level}</span>
+                    </div>
+                    <div class="text-white font-bold mb-0.5">${log.message}</div>
+                    <div class="text-[10px] text-cyber-accent flex items-center gap-1">
+                        <i class="fa-solid fa-wifi text-[9px]"></i> Feed: ${log.feed}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function filterLogs() {
+            renderLogs();
+        }
+
+        function exportLogsCSV() {
+            if (state.logs.length === 0) {
+                showToast("No log events available to export", "warning");
+                return;
+            }
+            let csv = "Timestamp,Feed,Message,Level\n";
+            state.logs.forEach(l => {
+                csv += `"${l.timestamp}","${l.feed}","${l.message}","${l.level}"\n`;
+            });
+            downloadFile(csv, `intrusion_logs_${Date.now()}.csv`, "text/csv");
+            showToast("CSV Log Export Downloaded", "info");
+        }
+
+        function exportLogsJSON() {
+            if (state.logs.length === 0) {
+                showToast("No log events available to export", "warning");
+                return;
+            }
+            const json = JSON.stringify(state.logs, null, 2);
+            downloadFile(json, `intrusion_logs_${Date.now()}.json`, "application/json");
+            showToast("JSON Log Export Downloaded", "info");
+        }
+
+        function downloadFile(content, filename, type) {
+            const blob = new Blob([content], { type: type });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        /* Adafruit IO Modal & Live Polling */
+        function openConfigModal() {
+            document.getElementById('configModal').classList.remove('hidden');
+        }
+
+        function closeConfigModal() {
+            document.getElementById('configModal').classList.add('hidden');
+        }
+
+        function saveAioConfig(e) {
+            e.preventDefault();
+            state.aioConfig.user = document.getElementById('aioUser').value.trim();
+            state.aioConfig.key = document.getElementById('aioKey').value.trim();
+            state.aioConfig.feed = document.getElementById('aioFeed').value.trim().toLowerCase();
+
+            state.mode = "AIO_LIVE";
+            document.getElementById('sourcePillText').innerText = `AIO LIVE (${state.aioConfig.feed})`;
+            document.getElementById('sourcePill').className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono bg-cyber-accent/10 border border-cyber-accent/40 text-cyber-accent";
+
+            closeConfigModal();
+            showToast("Connected to Adafruit IO Stream!", "info");
+
+            startAioPolling();
+        }
+
+        function switchToSimulatorMode() {
+            state.mode = "SIMULATOR";
+            if (state.aioConfig.pollInterval) clearInterval(state.aioConfig.pollInterval);
+            document.getElementById('sourcePillText').innerText = "DIGITAL TWIN SIMULATOR";
+            document.getElementById('sourcePill').className = "flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-mono bg-cyber-card border border-cyber-border text-cyber-accent";
+            closeConfigModal();
+            showToast("Switched to Digital Twin Simulator Mode", "info");
+        }
+
+        let lastAioDataId = null;
+        function startAioPolling() {
+            if (state.aioConfig.pollInterval) clearInterval(state.aioConfig.pollInterval);
+
+            async function poll() {
+                if (state.mode !== "AIO_LIVE") return;
+                const { user, key, feed } = state.aioConfig;
+                const url = `https://io.adafruit.com/api/v2/${user}/feeds/${feed}/data/last?x-aio-key=${key}`;
+
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const data = await res.json();
+
+                    if (data && data.id !== lastAioDataId) {
+                        lastAioDataId = data.id;
+                        if (data.value.toUpperCase().includes("INTRUSION")) {
+                            triggerAlarm(`CLOUD ALERT: ${data.value}`, `AIO/${feed}`);
+                        }
+                    }
+                } catch(err) {
+                    console.error("AIO Poll Error:", err);
+                }
+            }
+
+            poll();
+            state.aioConfig.pollInterval = setInterval(poll, 3000);
+        }
+
+        /* Toast Notifications */
+        function showToast(msg, type = "info") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            let colors = "bg-slate-900 border-cyber-accent text-cyber-accent";
+            if (type === "alert") colors = "bg-slate-900 border-cyber-alert text-cyber-alert glow-alert";
+            if (type === "warning") colors = "bg-slate-900 border-amber-500 text-amber-400";
+
+            toast.className = `p-3 rounded-xl border text-xs font-mono shadow-xl transition-all duration-300 transform translate-y-2 opacity-0 flex items-center gap-2 pointer-events-auto ${colors}`;
+            toast.innerHTML = `<span>${msg}</span>`;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            }, 10);
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        /* Uptime Counter */
+        setInterval(() => {
+            state.uptimeSeconds++;
+            const hrs = String(Math.floor(state.uptimeSeconds / 3600)).padStart(2, '0');
+            const mins = String(Math.floor((state.uptimeSeconds % 3600) / 60)).padStart(2, '0');
+            const secs = String(state.uptimeSeconds % 60).padStart(2, '0');
+            document.getElementById('uptimeCounter').innerText = `${hrs}:${mins}:${secs}`;
+        }, 1000);
+
+        /* Initial Execution */
+        window.addEventListener('DOMContentLoaded', () => {
+            initOscilloscopes();
+            evaluateSensors();
+        });
+    </script>
+</body>
+</html>
