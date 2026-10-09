@@ -58,7 +58,7 @@ const uint16_t mqttPort = 1883;
 const char* mqttUser    = " ";
 const char* mqttPass    = " ";
 
-const char* alertTopic  = " ";
+const char* alertTopic  = " "; // user/Feed/Block_Name
 
 const char* ssid     = " ";     // Your Wi-Fi network name
 const char* password = " "; // Your Wi-Fi password
@@ -141,8 +141,9 @@ void setup() {
   // Connect to Wi-Fi
   Serial.print("Connecting to Wi-Fi: ");
   Serial.println(ssid);
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password); // Begin the WiFi connection
 
+  // Wait until connection
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
@@ -158,7 +159,7 @@ void setup() {
 
 void loop() {
 
-  mqtt.update();
+  mqtt.update(); // Keep connection alive
 
   unsigned long now = millis(); // Update the current time
 

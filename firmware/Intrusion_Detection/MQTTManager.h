@@ -2,39 +2,48 @@
 #define MQTT_MANAGER_H
 
 #include <WiFi.h>
+
+//Core MQTT library
 #include <PubSubClient.h>
 
 
 class MQTTManager {
 private:
-  WiFiClient espClient;
-  PubSubClient client;
+  WiFiClient espClient; // Creates RAW TCP cocket conenction
+  PubSubClient client;  // Actual MQTT instance
   
-  const char* broker;
-  uint16_t port;
-  const char* user;
-  const char* pass;
+  const char* broker; // MQTT broker domain 
+  uint16_t port;  // 1833 for unencrypted MQTT
+  const char* user; // Username
+  const char* pass; // Key
 
+  // State variables for non blocking timing
   unsigned long lastReconnectAttempt = 0;
   const unsigned long reconnectInterval = 5000; // Retry connection every 5s non-blockingly
 
   bool reconnect() {
+
+    // Creates a unique client id string; Broker kicks out existing client if another device conencts with the same ID
     String clientId = "ESP32S3-Client-";
     clientId += String(random(0xffff), HEX);
 
+    // Sends the connect packet to the broker along with the credentials
     if (client.connect(clientId.c_str(), user, pass)) {
       Serial.println("[MQTT] Connected to Broker!");
       return true;
     } else {
       Serial.print("[MQTT] Connection failed, rc=");
+
+      // Prints the exact numerical return if connection fails: -2 Server unreachable; -4 Bad credentials
       Serial.println(client.state());
       return false;
     }
   }
 
 public:
-  MQTTManager() : client(espClient) {}
+  MQTTManager() : client(espClient) {} // Binds the PubSubClinet wrapper directly to the underlying TCP socket
 
+  // Configures the object with credentials
   void begin(const char* brokerUrl, uint16_t brokerPort, const char* username, const char* password) {
     broker = brokerUrl;
     port = brokerPort;
