@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h> //I2C communication library
 #include "MQTTManager.h" // Include the manager
+#include <ArduinoJson.h>
 
 // Pins
 #define MPU_ADDR  0x68  // My I2C device responds at the address 0x68
@@ -49,19 +50,55 @@ bool nearObject = false;
 bool moving = false;
 bool isLedOn = false;
 bool ledAlertActive = false;
+bool isAlarm = false;
 
 MQTTManager mqtt;
 
 // Adafruit IO Broker details & topics
 const char* mqttServer  = "io.adafruit.com";
 const uint16_t mqttPort = 1883;
-const char* mqttUser    = " ";
-const char* mqttPass    = " ";
+const char* mqttUser    = "";
+const char* mqttPass    = "";
 
-const char* alertTopic  = " "; // user/Feed/Block_Name
+const char* alertTopic  = ""; // user/feeds/feed_name
 
-const char* ssid     = " ";     // Your Wi-Fi network name
-const char* password = " "; // Your Wi-Fi password
+const char* telemetry_feed = "";
+
+const char* ssid     = "";     // Your Wi-Fi network name
+const char* password = ""; // Your Wi-Fi password
+
+// JSON publishing
+//Adafruit_MQTT_Publish telemetry = Adafruit_MQTT_Publish(&mqtt, telemetry_feed);
+
+unsigned long lastPublish = 0;
+const long publishInterval = 1000; // Send telemetry every second
+
+// Function to work on the JSON sensor reading packets
+void sendJsonTelemetry(float distance, float mpuVal, bool isAlarm) {
+  if (millis() - lastPublish < publishInterval) return;
+  lastPublish = millis();
+
+  // Allocate static memory for the JSON document
+  StaticJsonDocument<200> readings;
+
+  // Create key-value pairs
+  readings["distance"] = distance;
+  readings["mpu"] = mpuVal;
+  readings["status"] = isAlarm ? "ALARM" : "ARMED";
+
+  // Serialize into character array
+  char jsonBuff[256];
+  serializeJson(readings, jsonBuff);
+
+  // Publish the buffer
+  Serial.print(F("Publishing JSON: "));
+  Serial.println(jsonBuff);
+
+  if(!mqtt.publish(telemetry_feed, jsonBuff))
+    Serial.println(F("Failed to publish telemetry"));
+  else
+    Serial.println(F("Telemetry published successfully"));
+}
 
 // Ultrasonic sensor reader runs in the loop
 float readDistanceCm() {
@@ -153,8 +190,8 @@ void setup() {
   Serial.print("IP Address: ");
   Serial.println(WiFi.localIP());
 
-  // Now initialize MQTT after Wi-Fi is up
-  mqtt.begin(mqttServer, mqttPort, mqttUser, mqttPass);
+  // Now initialize MQTT after Wi-Fi is up; Connecting to the mqtt broker
+  mqtt.connect(mqttServer, mqttPort, mqttUser, mqttPass);
 }
 
 void loop() {
@@ -202,15 +239,16 @@ void loop() {
     lastFlashTime = now;
     lastToggleTime = now;
     isLedOn = true;
+    isAlarm = true;
     neopixelWrite(led, 255, 0, 0);
     Serial.println("Intrusion Alerted!");
+    sendJsonTelemetry(distanceCm, delta_Az, isAlarm);
     // Send cloud alert if 5 seconds have passed since the last message
     if (now - lastMqttAlertTime >= mqttCooldown) {
       lastMqttAlertTime = now;
       mqtt.publish(alertTopic, "INTRUSION DETECTED!");
     }
   }
-
 
   // Telemetry
   if (now - lastPrint >= printInterval) {
